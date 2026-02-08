@@ -1,0 +1,22 @@
+{
+  "name": "meteo-oms-agent",
+  "version": "1.0.0",
+  "description": "Meteo OMS AI Assistant - standalone agent with OpenRouter + Supabase",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "start": "tsx src/server.ts",
+    "cli": "tsx src/cli.ts",
+    "seed": "tsx src/seed.ts"
+  },
+  "dependencies": {
+    "express": "^4.21.0",
+    "openai": "^4.77.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}

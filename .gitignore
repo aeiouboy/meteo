@@ -1,0 +1,34 @@
+# OS
+.DS_Store
+
+# Environment / secrets
+env/
+.env*
+.mcp.json
+
+# Node
+node_modules/
+
+# Playwright MCP cache
+.playwright-mcp/
+
+# Python
+__pycache__/
+*.pyc
+.ruff_cache/
+
+# Claude Code (keep skills/agents/commands, exclude secrets and local settings)
+.claude/memory/
+.claude/projects/
+.claude/settings.local.json
+**/data/sessions/
+
+# Files with hardcoded secrets (public repo safety)
+agent/src/config.ts
+app/build_workflow.py
+app/workflow.json
+app/workflow_proxy.json
+
+# Logs
+logs/
+*.log
