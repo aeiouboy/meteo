@@ -9,6 +9,7 @@ export interface GraphNode {
   sourceId?: string;
   contentLength?: number;
   content?: string;
+  messageType?: 'human' | 'ai';
   // react-force-graph computed properties
   val?: number;
   x?: number;
@@ -37,5 +38,6 @@ export const CATEGORY_COLORS: Record<string, string> = {
   process: '#22c55e',
   troubleshooting: '#f59e0b',
   inventory: '#a855f7',
+  conversation: '#06b6d4',
   uncategorized: '#6b7280',
 };

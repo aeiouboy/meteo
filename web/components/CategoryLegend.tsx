@@ -20,7 +20,7 @@ export default function CategoryLegend({
   if (categoryKeys.length === 0) return null;
 
   return (
-    <div className="fixed bottom-6 left-6 z-40 bg-gray-900/80 backdrop-blur-sm rounded-xl p-4 border border-gray-700/50">
+    <div className="fixed sm:bottom-6 bottom-2 sm:left-6 left-2 z-40 bg-gray-900/80 backdrop-blur-sm rounded-xl p-4 border border-gray-700/50 max-h-[40vh] overflow-y-auto">
       <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
         Categories
       </h3>

@@ -25,6 +25,7 @@ export default function NetworkGraph({
 }: Props) {
   const fgRef = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const hasAutoFitted = useRef(false);
   const [dimensions, setDimensions] = useState<{
     width: number;
     height: number;
@@ -94,7 +95,7 @@ export default function NetworkGraph({
       const charge = fgRef.current.d3Force('charge');
       if (charge) {
         charge.strength((node: any) =>
-          node.type === 'source' ? -120 : -30
+          node.type === 'source' ? -150 : -40
         );
       }
 
@@ -104,26 +105,45 @@ export default function NetworkGraph({
           link.type === 'contains' ? 30 : 100
         );
       }
+
+      // Ensure center force is active to keep disconnected clusters together
+      const center = fgRef.current.d3Force('center');
+      if (center) {
+        center.x(0).y(0).strength(0.1);
+      }
     }
   }, [filteredData]);
+
+  // Auto-fit on first engine stop
+  const handleEngineStop = useCallback(() => {
+    if (!hasAutoFitted.current && fgRef.current) {
+      hasAutoFitted.current = true;
+      fgRef.current.zoomToFit(400, 80);
+    }
+  }, []);
 
   // Custom node rendering
   const nodeCanvasObject = useCallback(
     (node: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
       const isSource = node.type === 'source';
       const radius = isSource ? 8 : 3;
-      const alpha = isSource ? 0.9 : 0.5;
       const color = node.color || '#6b7280';
       const isSelected = selectedNode?.id === node.id;
-      const isSearchMatch =
-        searchQuery.trim() !== '' && searchMatchIds.has(node.id);
+      const isSearching = searchQuery.trim() !== '';
+      const isSearchMatch = isSearching && searchMatchIds.has(node.id);
+      const isDimmed = isSearching && !isSearchMatch;
+
+      // Alpha: dim non-matching nodes when searching
+      const alpha = isDimmed ? 0.08 : isSource ? 0.9 : 0.5;
 
       // Parse color for alpha manipulation
       const fillColor = hexToRgba(color, alpha);
 
       // Glow effect
       ctx.save();
-      if (isSearchMatch) {
+      if (isDimmed) {
+        ctx.shadowBlur = 0;
+      } else if (isSearchMatch) {
         ctx.shadowBlur = isSource ? 25 : 15;
         ctx.shadowColor = '#ffffff';
       } else {
@@ -150,12 +170,17 @@ export default function NetworkGraph({
 
       // Label text for source nodes
       if (isSource) {
-        const label = node.label || '';
-        const fontSize = 4;
+        let label = node.label || '';
+        if (node.category === 'conversation' && label.length > 30) {
+          label = label.substring(0, 30) + '...';
+        }
+        const fontSize = 8;
         ctx.font = `${fontSize}px Sans-Serif`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'top';
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+        ctx.fillStyle = isDimmed
+          ? 'rgba(255, 255, 255, 0.08)'
+          : 'rgba(255, 255, 255, 0.9)';
         ctx.fillText(label, node.x!, node.y! + radius + 2);
       }
     },
@@ -175,14 +200,28 @@ export default function NetworkGraph({
   );
 
   // Link color
-  const linkColor = useCallback((link: any) => {
-    if (link.type === 'similarity') {
-      const strength =
-        typeof link.strength === 'number' ? link.strength : 0.5;
-      return `rgba(255,165,0,${strength * 0.5})`;
-    }
-    return 'rgba(255,255,255,0.08)';
-  }, []);
+  const linkColor = useCallback(
+    (link: any) => {
+      const isSearching = searchQuery.trim() !== '';
+      const sourceId =
+        typeof link.source === 'string' ? link.source : link.source?.id;
+      const targetId =
+        typeof link.target === 'string' ? link.target : link.target?.id;
+      const linkMatchesSearch =
+        isSearching &&
+        (searchMatchIds.has(sourceId) || searchMatchIds.has(targetId));
+      const isDimmed = isSearching && !linkMatchesSearch;
+
+      if (link.type === 'similarity') {
+        const strength =
+          typeof link.strength === 'number' ? link.strength : 0.5;
+        const opacity = isDimmed ? 0.03 : strength * 0.5;
+        return `rgba(255,165,0,${opacity})`;
+      }
+      return isDimmed ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.15)';
+    },
+    [searchQuery, searchMatchIds]
+  );
 
   // Link width
   const linkWidth = useCallback((link: any) => {
@@ -203,7 +242,7 @@ export default function NetworkGraph({
   );
 
   return (
-    <div ref={containerRef} className="w-full h-full">
+    <div ref={containerRef} className="w-full h-full relative">
       <ForceGraph2D
         ref={fgRef}
         graphData={filteredData}
@@ -212,7 +251,7 @@ export default function NetworkGraph({
         height={dimensions.height}
         cooldownTicks={100}
         d3AlphaDecay={0.02}
-        d3VelocityDecay={0.3}
+        d3VelocityDecay={0.35}
         nodeRelSize={1}
         nodeCanvasObject={nodeCanvasObject}
         nodePointerAreaPaint={nodePointerAreaPaint}
@@ -223,7 +262,38 @@ export default function NetworkGraph({
         linkDirectionalParticleSpeed={0.004}
         linkDirectionalParticleWidth={1.5}
         linkDirectionalParticleColor={() => 'rgba(255,255,255,0.4)'}
+        onEngineStop={handleEngineStop}
       />
+      {/* Zoom Controls */}
+      <div className="absolute bottom-4 right-4 flex flex-col gap-1 z-10">
+        <button
+          onClick={() => fgRef.current?.zoomToFit(400, 80)}
+          className="w-8 h-8 bg-gray-800/80 hover:bg-gray-700/80 border border-gray-600/50 rounded text-gray-300 hover:text-white text-xs flex items-center justify-center transition-colors"
+          title="Fit to screen"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
+        </button>
+        <button
+          onClick={() => {
+            const fg = fgRef.current;
+            if (fg) fg.zoom(fg.zoom() * 1.3, 300);
+          }}
+          className="w-8 h-8 bg-gray-800/80 hover:bg-gray-700/80 border border-gray-600/50 rounded text-gray-300 hover:text-white text-lg flex items-center justify-center transition-colors"
+          title="Zoom in"
+        >
+          +
+        </button>
+        <button
+          onClick={() => {
+            const fg = fgRef.current;
+            if (fg) fg.zoom(fg.zoom() * 0.7, 300);
+          }}
+          className="w-8 h-8 bg-gray-800/80 hover:bg-gray-700/80 border border-gray-600/50 rounded text-gray-300 hover:text-white text-lg flex items-center justify-center transition-colors"
+          title="Zoom out"
+        >
+          -
+        </button>
+      </div>
     </div>
   );
 }

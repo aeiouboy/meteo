@@ -74,6 +74,18 @@ export default function Home() {
     return counts;
   }, [graphData]);
 
+  // Compute search match count
+  const searchMatchCount = useMemo(() => {
+    if (!graphData || !debouncedSearch) return 0;
+    const q = debouncedSearch.toLowerCase();
+    return graphData.nodes.filter((node) => {
+      const label = (node.label || '').toLowerCase();
+      const category = (node.category || '').toLowerCase();
+      const content = (node.content || '').toLowerCase();
+      return label.includes(q) || category.includes(q) || content.includes(q);
+    }).length;
+  }, [graphData, debouncedSearch]);
+
   // Loading state
   if (loading) {
     return (
@@ -118,6 +130,8 @@ export default function Home() {
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         stats={graphData.stats}
+        matchCount={searchMatchCount}
+        isSearching={debouncedSearch.length > 0}
       />
 
       {/* Category legend - bottom left */}

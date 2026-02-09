@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { GraphNode, GraphLink, CATEGORY_COLORS } from '@/lib/types';
 
 interface Props {
@@ -15,6 +16,19 @@ function getLinkNodeId(endpoint: string | GraphNode): string {
 
 export default function NodeDetailPanel({ node, links, nodes, onClose }: Props) {
   const isVisible = node !== null;
+  const [expandedChunks, setExpandedChunks] = useState<Set<string>>(new Set());
+
+  const toggleChunk = (chunkId: string) => {
+    setExpandedChunks((prev) => {
+      const next = new Set(prev);
+      if (next.has(chunkId)) {
+        next.delete(chunkId);
+      } else {
+        next.add(chunkId);
+      }
+      return next;
+    });
+  };
 
   // Find child chunks (for source nodes)
   const childChunks = node?.type === 'source'
@@ -156,28 +170,97 @@ export default function NodeDetailPanel({ node, links, nodes, onClose }: Props) 
                   <div>
                     <h3 className="text-sm font-medium text-gray-300 uppercase tracking-wide mb-2">
                       Chunks ({childChunks.length})
+                      <span className="text-xs text-gray-500 font-normal ml-2">click to expand</span>
                     </h3>
-                    <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
-                      {childChunks.map((chunk) => (
-                        <div
-                          key={chunk.id}
-                          className="bg-gray-800/40 rounded-lg p-3 border border-gray-700/50"
-                        >
-                          <div className="text-sm text-white font-medium truncate">
-                            {chunk.label}
+                    <div className="space-y-2 overflow-y-auto pr-1">
+                      {childChunks.map((chunk, index) => {
+                        const isExpanded = expandedChunks.has(chunk.id);
+                        const isConversationQA = chunk.category === 'conversation' && chunk.content?.startsWith('Question:');
+                        return (
+                          <div
+                            key={chunk.id}
+                            className={`bg-gray-800/40 rounded-lg border transition-colors cursor-pointer ${
+                              isExpanded
+                                ? 'border-gray-500/70 bg-gray-800/70'
+                                : 'border-gray-700/50 hover:border-gray-600/50'
+                            }`}
+                            onClick={() => toggleChunk(chunk.id)}
+                          >
+                            {/* Chunk header — always visible */}
+                            <div className="flex items-center justify-between p-3">
+                              <div className="flex items-center gap-2 min-w-0 flex-1">
+                                <span className="text-xs text-gray-500 font-mono flex-shrink-0">
+                                  #{index + 1}
+                                </span>
+                                <span className={`text-sm text-white font-medium ${isExpanded ? '' : 'truncate'}`}>
+                                  {chunk.label}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+                                {chunk.contentLength !== undefined && (
+                                  <span className="text-xs text-gray-500">
+                                    {chunk.contentLength.toLocaleString()}c
+                                  </span>
+                                )}
+                                <svg
+                                  xmlns="http://www.w3.org/2000/svg"
+                                  width="14"
+                                  height="14"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  className={`text-gray-500 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+                                >
+                                  <polyline points="6 9 12 15 18 9" />
+                                </svg>
+                              </div>
+                            </div>
+
+                            {/* Collapsed preview — 2 lines */}
+                            {!isExpanded && chunk.content && (
+                              <div className="px-3 pb-3 -mt-1">
+                                <div className="text-xs text-gray-400 line-clamp-2">
+                                  {chunk.content}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Expanded full content */}
+                            {isExpanded && chunk.content && (
+                              <div className="px-3 pb-3 border-t border-gray-700/50 mt-1 pt-3">
+                                {isConversationQA ? (
+                                  <div className="space-y-3">
+                                    {(() => {
+                                      const parts = chunk.content.split('\n\nAnswer:');
+                                      const question = parts[0]?.replace('Question: ', '') || '';
+                                      const answer = parts[1]?.trim() || '';
+                                      return (
+                                        <>
+                                          <div className="border-l-2 border-cyan-400 pl-3">
+                                            <div className="text-xs text-cyan-400 font-medium mb-1">Question</div>
+                                            <div className="text-sm text-gray-300">{question}</div>
+                                          </div>
+                                          <div className="border-l-2 border-green-400 pl-3">
+                                            <div className="text-xs text-green-400 font-medium mb-1">Answer</div>
+                                            <div className="text-sm text-gray-300 whitespace-pre-wrap">{answer}</div>
+                                          </div>
+                                        </>
+                                      );
+                                    })()}
+                                  </div>
+                                ) : (
+                                  <pre className="text-xs text-gray-300 whitespace-pre-wrap break-words font-mono leading-relaxed">
+                                    {chunk.content}
+                                  </pre>
+                                )}
+                              </div>
+                            )}
                           </div>
-                          {chunk.contentLength !== undefined && (
-                            <div className="text-xs text-gray-500 mt-1">
-                              {chunk.contentLength.toLocaleString()} chars
-                            </div>
-                          )}
-                          {chunk.content && (
-                            <div className="text-xs text-gray-400 mt-1.5 line-clamp-2">
-                              {chunk.content}
-                            </div>
-                          )}
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 )}
@@ -262,9 +345,31 @@ export default function NodeDetailPanel({ node, links, nodes, onClose }: Props) 
                       Content
                     </h3>
                     <div className="bg-gray-800/40 rounded-lg p-3 border border-gray-700/50 max-h-96 overflow-y-auto">
-                      <pre className="text-sm text-gray-300 whitespace-pre-wrap break-words font-mono leading-relaxed">
-                        {node.content}
-                      </pre>
+                      {node.category === 'conversation' && node.content.startsWith('Question:') ? (
+                        <div className="space-y-3">
+                          {(() => {
+                            const parts = node.content.split('\n\nAnswer:');
+                            const question = parts[0]?.replace('Question: ', '') || '';
+                            const answer = parts[1]?.trim() || '';
+                            return (
+                              <>
+                                <div className="border-l-2 border-cyan-400 pl-3">
+                                  <div className="text-xs text-cyan-400 font-medium mb-1">Question</div>
+                                  <div className="text-sm text-gray-300">{question}</div>
+                                </div>
+                                <div className="border-l-2 border-green-400 pl-3">
+                                  <div className="text-xs text-green-400 font-medium mb-1">Answer</div>
+                                  <div className="text-sm text-gray-300 whitespace-pre-wrap">{answer}</div>
+                                </div>
+                              </>
+                            );
+                          })()}
+                        </div>
+                      ) : (
+                        <pre className="text-sm text-gray-300 whitespace-pre-wrap break-words font-mono leading-relaxed">
+                          {node.content}
+                        </pre>
+                      )}
                     </div>
                   </div>
                 )}
